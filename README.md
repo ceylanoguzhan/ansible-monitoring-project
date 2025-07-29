@@ -11,7 +11,6 @@ It demonstrates how to implement **Infrastructure as Code (IaC)** for centralize
   - **Prometheus** (Monitoring & Metrics storage)
   - **Grafana** (Visualization & Dashboards)
   - **Node Exporter** (Linux metrics)
-  - **Windows Exporter** (Windows metrics)
 - Centralized configuration using a single `install_monitoring.yaml` playbook
 - Ready-to-use dashboards for both Linux and Windows environments
 - No manual steps required: everything is handled by Ansible
