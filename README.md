@@ -82,6 +82,3 @@ ansible-project/
 - Implement **role-based Ansible structure**
 - Add **TLS & authentication** for Grafana and Prometheus
 
----
-
-> 🔗 Follow me on [LinkedIn](https://www.linkedin.com/) for more Ansible & DevOps projects!
