@@ -1,0 +1,182 @@
+# =================== DEPENDENCIES ===================
+- name: Install common dependencies
+  hosts: prometheus:grafana:node_exporter
+  become: true
+  tasks:
+    - name: Install dependencies
+      apt:
+        name: [wget, tar, curl, software-properties-common, apt-transport-https]
+        state: present
+        update_cache: yes
+
+# =================== PROMETHEUS ===================
+- name: Install Prometheus
+  hosts: prometheus
+  become: true
+  tasks:
+    - name: Download Prometheus
+      get_url:
+        url: https://github.com/prometheus/prometheus/releases/download/v2.52.0/prometheus-2.52.0.linux-amd64.tar.gz
+        dest: /tmp/prometheus.tar.gz
+
+    - name: Extract Prometheus
+      unarchive:
+        src: /tmp/prometheus.tar.gz
+        dest: /opt/
+        remote_src: yes
+
+    - name: Create Prometheus user
+      user:
+        name: prometheus
+        shell: /sbin/nologin
+
+    - name: Create Prometheus directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: prometheus
+        group: prometheus
+      loop:
+        - /etc/prometheus
+        - /var/lib/prometheus
+
+    - name: Copy Prometheus binaries
+      copy:
+        remote_src: true
+        src: /opt/prometheus-2.52.0.linux-amd64/{{ item }}
+        dest: /usr/local/bin/{{ item }}
+        mode: '0755'
+      loop:
+        - prometheus
+        - promtool
+
+    - name: Create Prometheus config file (with Node Exporter target)
+      copy:
+        dest: /etc/prometheus/prometheus.yml
+        content: |
+          global:
+            scrape_interval: 15s
+          scrape_configs:
+            - job_name: 'prometheus'
+              static_configs:
+                - targets: ['localhost:9090']
+            - job_name: 'node_exporter'
+              static_configs:
+                - targets: ['{{ groups['node_exporter'] | join(":9100','") }}:9100']
+        owner: prometheus
+        group: prometheus
+        mode: '0644'
+
+    - name: Create systemd service for Prometheus
+      copy:
+        dest: /etc/systemd/system/prometheus.service
+        content: |
+          [Unit]
+          Description=Prometheus
+          After=network.target
+
+          [Service]
+          User=prometheus
+          ExecStart=/usr/local/bin/prometheus --config.file=/etc/prometheus/prometheus.yml --storage.tsdb.path=/var/lib/prometheus
+          Restart=on-failure
+
+          [Install]
+          WantedBy=multi-user.target
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Start and enable Prometheus
+      systemd:
+        name: prometheus
+        enabled: yes
+        state: started
+
+# =================== NODE EXPORTER ===================
+- name: Install Node Exporter
+  hosts: node_exporter
+  become: true
+  tasks:
+    - name: Download Node Exporter
+      get_url:
+        url: https://github.com/prometheus/node_exporter/releases/download/v1.8.1/node_exporter-1.8.1.linux-amd64.tar.gz
+        dest: /tmp/node_exporter.tar.gz
+
+    - name: Extract Node Exporter
+      unarchive:
+        src: /tmp/node_exporter.tar.gz
+        dest: /opt/
+        remote_src: yes
+
+    - name: Create Node Exporter user
+      user:
+        name: nodeusr
+        shell: /sbin/nologin
+
+    - name: Copy Node Exporter binary
+      copy:
+        remote_src: true
+        src: /opt/node_exporter-1.8.1.linux-amd64/node_exporter
+        dest: /usr/local/bin/node_exporter
+        mode: '0755'
+
+    - name: Create systemd service for Node Exporter
+      copy:
+        dest: /etc/systemd/system/node_exporter.service
+        content: |
+          [Unit]
+          Description=Node Exporter
+          After=network.target
+
+          [Service]
+          User=nodeusr
+          ExecStart=/usr/local/bin/node_exporter
+          Restart=on-failure
+
+          [Install]
+          WantedBy=multi-user.target
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Start and enable Node Exporter
+      systemd:
+        name: node_exporter
+        enabled: yes
+        state: started
+
+# =================== GRAFANA ===================
+- name: Install Grafana
+  hosts: grafana
+  become: true
+  tasks:
+    - name: Create keyrings directory
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: '0755'
+
+    - name: Download Grafana GPG key and dearmor
+      ansible.builtin.shell: |
+        curl -fsSL https://apt.grafana.com/gpg.key | gpg --dearmor -o /etc/apt/keyrings/grafana.gpg
+      args:
+        creates: /etc/apt/keyrings/grafana.gpg
+
+    - name: Add Grafana repository
+      copy:
+        dest: /etc/apt/sources.list.d/grafana.list
+        content: |
+          deb [signed-by=/etc/apt/keyrings/grafana.gpg] https://apt.grafana.com stable main
+
+    - name: Update apt and install Grafana
+      apt:
+        name: grafana
+        state: present
+        update_cache: yes
+
+    - name: Start and enable Grafana
+      systemd:
+        name: grafana-server
+        enabled: yes
+        state: started
+
