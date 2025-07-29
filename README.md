@@ -21,7 +21,7 @@ It demonstrates how to implement **Infrastructure as Code (IaC)** for centralize
 ## 📂 Project Structure
 
 ```bash
-ansible-project/
+ansible-monitoring-project/
 ├── install_monitoring.yaml    # Ansible playbook for full monitoring stack
 └── inventory.ini               # Inventory file (hosts & groups)
 ```
